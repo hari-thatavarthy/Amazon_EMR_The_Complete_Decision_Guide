@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon EMR Decision Guide — EC2 vs Serverless vs EKS</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Georgia,'Times New Roman',serif;background:#f5f5f0;color:#1a1a1a;padding:28px 16px;line-height:1.7;font-size:16px}
+.container{max-width:1060px;margin:0 auto;background:#fff;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden}
+
+/* Header */
+.header{padding:48px 44px 40px;border-bottom:1px solid #e0e0e0}
+.header h1{font-size:2rem;font-weight:700;color:#1a1a1a;margin-bottom:8px;letter-spacing:-0.5px;line-height:1.25}
+.header .subtitle{font-size:1.05rem;color:#555;font-weight:400;margin-bottom:14px}
+.header .meta{font-size:.8rem;color:#888;line-height:1.5}
+
+/* Prose / writeups */
+.prose{padding:28px 44px 8px;font-size:.92rem;color:#333;line-height:1.75;max-width:820px}
+.prose p{margin-bottom:12px}
+
+/* Section titles */
+.section-title{padding:20px 44px 6px;font-size:1.15rem;font-weight:700;color:#1a1a1a;letter-spacing:-0.2px;border-top:1px solid #e0e0e0;margin-top:8px}
+.section-number{color:#888;font-weight:400;margin-right:6px}
+
+/* Table styles */
+.table-wrap{padding:0 44px 28px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:.84rem;margin-top:16px}
+th,td{padding:11px 14px;text-align:left;vertical-align:top;border-bottom:1px solid #e8e8e8}
+th{background:#f9f9f7;font-weight:600;color:#444;font-size:.76rem;text-transform:uppercase;letter-spacing:.5px}
+th:first-child{width:21%}
+th.col-head{text-align:center;font-size:.8rem;letter-spacing:.3px;color:#1a1a1a;border-bottom:2px solid #ccc}
+td:first-child{font-weight:600;color:#1a1a1a}
+tr:hover td{background:#fafaf6}
+
+/* Subtle cell emphasis — no loud colors */
+.strong-fit{background:#f3f7f2 !important}
+.caution{background:#fdf8f0 !important}
+.not-avail{background:#faf5f4 !important}
+
+/* Support labels */
+.sup{font-weight:700;color:#2a6e2a}
+.nosup{color:#999}
+.partial{color:#8a6d2b;font-weight:600}
+
+/* Price styling */
+.price{font-family:'SF Mono',Consolas,'Courier New',monospace;font-weight:600;color:#1a1a1a;font-size:.84rem}
+.price-sub{font-size:.72rem;color:#777;display:block;margin-top:2px;font-family:'Segoe UI',Arial,sans-serif}
+.price-good{color:#2a6e2a}
+.price-bad{color:#a63d2f}
+
+/* Callout */
+.callout{margin:4px 44px 24px;padding:16px 20px;background:#f9f9f7;border-left:3px solid #ccc;font-size:.86rem;color:#444;font-family:'Segoe UI',Arial,sans-serif;line-height:1.65}
+.callout strong{color:#1a1a1a;display:block;margin-bottom:4px}
+
+/* Decision cards */
+.decisions{padding:16px 44px 32px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;font-family:'Segoe UI',Arial,sans-serif}
+.decision-card{border:1px solid #ddd;border-radius:4px;padding:20px 18px}
+.decision-card h3{font-size:.88rem;margin-bottom:10px;color:#1a1a1a;font-weight:700;padding-bottom:8px;border-bottom:1px solid #e8e8e8}
+.decision-card ul{padding-left:18px;font-size:.82rem;color:#444}
+.decision-card li{margin-bottom:5px;line-height:1.55}
+
+/* Footer */
+.footer{padding:24px 44px;text-align:left;font-size:.76rem;color:#888;border-top:1px solid #e0e0e0;font-family:'Segoe UI',Arial,sans-serif;line-height:1.7}
+.footer a{color:#555;text-decoration:underline}
+
+/* Intro */
+.intro{padding:32px 44px 28px;border-bottom:1px solid #e0e0e0}
+.intro p{font-size:.93rem;color:#333;line-height:1.8;margin-bottom:14px;max-width:820px}
+.intro p:last-child{margin-bottom:0}
+.intro-lead{font-size:1.08rem;color:#1a1a1a;font-weight:400;line-height:1.7}
+.intro-lead em{font-style:italic;color:#1a1a1a}
+
+/* Responsive */
+@media(max-width:768px){
+  .decisions{grid-template-columns:1fr}
+  table{font-size:.78rem}
+  th,td{padding:8px 10px}
+  .header{padding:32px 24px 28px}
+  .header h1{font-size:1.5rem}
+  .prose,.table-wrap,.callout,.section-title{padding-left:24px;padding-right:24px}
+  .footer{padding:20px 24px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+  <h1>Amazon EMR: Choosing Between EC2, Serverless, and EKS</h1>
+  <div class="subtitle">A practical side-by-side comparison to help you pick the right deployment model for your workload.</div>
+  <div class="meta">Based on AWS documentation and Price List API data (us-east-1) &middot; April 2026</div>
+</div>
+
+<!-- ============ INTRO ============ -->
+<div class="intro">
+  <p class="intro-lead">You have a Spark job, a Hive query, or a Flink pipeline. You know you want to run it on Amazon EMR. The question that stops most teams is not <em>whether</em> to use EMR — it is <em>which</em> EMR.</p>
+  <p>AWS now offers three distinct ways to deploy EMR workloads, and they differ in almost every dimension that matters: what you manage, what you pay, how fast jobs start, which frameworks are available, and how far you can customize the environment. Picking the wrong one does not just cost more — it can lock your team into an operational model that fights your workload instead of serving it.</p>
+  <p>This guide puts all three options side by side across 40+ dimensions — architecture, frameworks, storage, scaling, pricing, security, operations, limitations, and real-world use cases — so you can make the decision once and make it well. Every data point is sourced from official AWS documentation and the AWS Price List API. No marketing fluff, no hand-waving, just the details you need.</p>
+</div>
+
+<!-- ============ 1. ARCHITECTURE ============ -->
+<div class="section-title"><span class="section-number">1.</span> Architecture and Compute Model</div>
+<div class="prose">
+  <p>The most fundamental difference between the three EMR options is what you actually manage. EMR on EC2 gives you a full cluster of instances organized into node roles — you control instance types, storage, scaling policies, and the cluster lifecycle. EMR Serverless abstracts all of that away: you submit a job and AWS provisions, scales, and tears down compute behind the scenes. EMR on EKS sits in between — you manage an existing Kubernetes cluster, and EMR runs your analytics workloads as pods alongside your other containerized applications.</p>
+  <p>This architectural choice cascades into everything else: how fast jobs start, how large they can scale, how much operational overhead you carry, and what failure modes you need to plan for.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Dimension</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>What you manage</td>
+  <td>Full EC2 cluster — instance types, node roles, scaling, lifecycle</td>
+  <td>Nothing — submit jobs, AWS handles all infrastructure</td>
+  <td>EKS cluster and node groups; EMR manages the job pods</td>
+</tr>
+<tr>
+  <td>Compute unit</td>
+  <td>EC2 instances organized as <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-master-core-task-nodes.html" target="_blank">Primary, Core, and Task nodes</a></td>
+  <td>Workers — abstract units of vCPU, memory, and disk</td>
+  <td>Kubernetes pods running on EC2 nodes or Fargate</td>
+</tr>
+<tr>
+  <td>Cluster concept</td>
+  <td class="strong-fit">Full cluster with <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-overview-arch.html" target="_blank">YARN resource manager</a></td>
+  <td>Application — a <a href="https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/emr-serverless.html" target="_blank">logical container</a>, no cluster to manage</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/emr-eks-concepts.html" target="_blank">Virtual Cluster</a> — a K8s namespace registered with EMR</td>
+</tr>
+<tr>
+  <td>Node types</td>
+  <td class="strong-fit">Primary + Core (HDFS and compute) + Task (compute only)</td>
+  <td>Driver workers and Executor workers, auto-managed</td>
+  <td>Driver pod and Executor pods, scheduled by Kubernetes</td>
+</tr>
+<tr>
+  <td>High availability</td>
+  <td class="strong-fit"><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-ha.html" target="_blank">3-primary HA configuration</a> (EMR 5.23+)</td>
+  <td>Built-in — AWS manages redundancy internally</td>
+  <td>Depends on your EKS cluster HA configuration</td>
+</tr>
+<tr>
+  <td>Startup time</td>
+  <td class="caution">5–15 minutes (cold provisioning)</td>
+  <td class="strong-fit">Under 1 second with <a href="https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/pre-init-capacity.html" target="_blank">warm pool</a>; 30–60 seconds cold</td>
+  <td>1–3 minutes if new nodes need provisioning</td>
+</tr>
+<tr>
+  <td>Max compute scale</td>
+  <td class="strong-fit">Up to 4,000 instances per <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-instance-fleet.html" target="_blank">instance fleet</a>; any EC2 type including GPU</td>
+  <td>16 vCPU and 120 GB per <a href="https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/app-behavior.html" target="_blank">worker</a>; soft limits on total capacity</td>
+  <td>Bounded by EKS cluster size; Fargate caps at 4 vCPU / 30 GB per pod</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 2. FRAMEWORKS ============ -->
+<div class="section-title"><span class="section-number">2.</span> Framework and Runtime Support</div>
+<div class="prose">
+  <p>This is often the first filter in the decision process. EMR on EC2 supports the broadest set of open-source frameworks — everything from Spark and Hive to HBase, Presto, Flink, Pig, and interactive tools like Zeppelin. EMR Serverless narrows the field to Spark and Hive. EMR on EKS supports Spark and Flink but not Hive or any of the legacy Hadoop ecosystem tools.</p>
+  <p>If your workload depends on a specific framework, this table may answer the question immediately. If you only need Spark, all three options work — and the decision shifts to the operational and cost dimensions covered in the sections below.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Framework</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark.html" target="_blank">Apache Spark</a></td><td><span class="sup">Supported</span></td><td><span class="sup">Supported</span></td><td><span class="sup">Supported</span></td></tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hive.html" target="_blank">Apache Hive</a></td><td><span class="sup">Supported</span></td><td><span class="sup">Supported</span></td><td><span class="nosup">Not available</span></td></tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-flink.html" target="_blank">Apache Flink</a></td><td><span class="sup">Supported</span></td><td><span class="nosup">Not available</span></td><td><span class="sup">Supported</span></td></tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hbase.html" target="_blank">Apache HBase</a></td><td class="strong-fit"><span class="sup">Supported</span> — requires HDFS</td><td><span class="nosup">Not available</span></td><td><span class="nosup">Not available</span></td></tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-presto.html" target="_blank">Presto / Trino</a></td><td class="strong-fit"><span class="sup">Supported</span></td><td><span class="nosup">Not available</span></td><td><span class="nosup">Not available</span></td></tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hadoop.html" target="_blank">Hadoop MapReduce</a></td><td><span class="sup">Supported</span></td><td><span class="nosup">Not available</span></td><td><span class="nosup">Not available</span></td></tr>
+<tr><td><a href="https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark-streaming.html" target="_blank">Spark Structured Streaming</a></td><td><span class="sup">Supported</span></td><td><span class="partial">Supported</span> — EMR 7.1+ only</td><td><span class="sup">Supported</span></td></tr>
+<tr><td>Delta Lake / Iceberg / Hudi</td><td><span class="sup">Supported</span></td><td><span class="sup">Supported</span></td><td><span class="sup">Supported</span></td></tr>
+<tr><td>Pig / Oozie / Sqoop</td><td><span class="sup">Supported</span></td><td><span class="nosup">Not available</span></td><td><span class="nosup">Not available</span></td></tr>
+<tr><td>Zeppelin / JupyterHub</td><td><span class="sup">Supported</span></td><td><span class="nosup">Not available</span></td><td><span class="nosup">Not available</span></td></tr>
+<tr>
+  <td><strong>Total frameworks</strong></td>
+  <td class="strong-fit"><strong>12+</strong></td>
+  <td><strong>2</strong> (Spark and Hive)</td>
+  <td><strong>2</strong> (Spark and Flink)</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 3. STORAGE ============ -->
+<div class="section-title"><span class="section-number">3.</span> Storage</div>
+<div class="prose">
+  <p>Storage architecture is one of the clearest differentiators. EMR on EC2 is the only option that gives you HDFS — a distributed file system running across the cluster's core nodes that provides high-throughput local I/O. This matters for workloads like HBase, heavy shuffle operations, or iterative ML algorithms that re-read data many times.</p>
+  <p>Both Serverless and EKS enforce compute-storage separation: all persistent data lives in Amazon S3, and compute resources scale independently. For the majority of modern Spark and Hive workloads, this is the recommended pattern regardless of deployment option. The question is whether your specific use case requires the local throughput that only HDFS provides.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Capability</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-file-systems.html" target="_blank">HDFS</a> (distributed local storage)</td>
+  <td class="strong-fit"><span class="sup">Available</span> — replicated across core nodes, high throughput</td>
+  <td><span class="nosup">Not available</span></td>
+  <td><span class="nosup">Not available</span></td>
+</tr>
+<tr>
+  <td>Amazon S3 via <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-file-systems.html" target="_blank">EMRFS</a></td>
+  <td><span class="sup">Supported</span></td>
+  <td><span class="sup">Supported</span></td>
+  <td><span class="sup">Supported</span></td>
+</tr>
+<tr>
+  <td>Ephemeral local disk</td>
+  <td>EBS volumes and instance store (NVMe)</td>
+  <td>20–200 GB per worker, configurable</td>
+  <td>EBS on EC2 nodes; 20 GB on Fargate pods</td>
+</tr>
+<tr>
+  <td>Data persistence</td>
+  <td>HDFS data lost on cluster termination; S3 data persists</td>
+  <td>S3 only — always persists</td>
+  <td>S3 only — always persists</td>
+</tr>
+<tr>
+  <td>Compute-storage separation</td>
+  <td><span class="partial">Optional</span> — you choose HDFS, S3, or both</td>
+  <td class="strong-fit"><span class="sup">Enforced</span> — S3 only</td>
+  <td class="strong-fit"><span class="sup">Enforced</span> — S3 only</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 4. SCALING ============ -->
+<div class="section-title"><span class="section-number">4.</span> Scaling and Elasticity</div>
+<div class="prose">
+  <p>How well each option handles fluctuating demand has a direct impact on both performance and cost. EMR Serverless is the most elastic — workers spin up and down per-job, and the application can scale to zero when idle, meaning zero cost between jobs. EMR on EC2 offers managed scaling that evaluates cluster metrics every 5–10 seconds, but you always have at least one primary node running. EMR on EKS delegates scaling to Kubernetes tools like Karpenter, which can provision new nodes in seconds and drain them when empty.</p>
+  <p>The Spot Instance dimension is worth particular attention. Both EC2 and EKS support Spot pricing for up to 90% savings on compute, while Serverless does not offer Spot — though Graviton-based workers provide a roughly 20% discount as a partial offset.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Capability</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>Auto-scaling</td>
+  <td><span class="sup"><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-scale-on-demand.html" target="_blank">Managed scaling</a></span> (5–10 sec evaluation); custom rules for instance groups; manual</td>
+  <td class="strong-fit"><span class="sup">Fully automatic</span> — workers scale per-job with no configuration</td>
+  <td><span class="sup">Supported</span> via Karpenter or Cluster Autoscaler</td>
+</tr>
+<tr>
+  <td>Scale-to-zero</td>
+  <td class="not-avail">No — at least one primary node always running</td>
+  <td class="strong-fit">Yes — auto-stop releases all resources after idle timeout</td>
+  <td>Yes — Karpenter or node groups can scale to zero nodes</td>
+</tr>
+<tr>
+  <td>Scaling granularity</td>
+  <td>Full EC2 instances (takes minutes)</td>
+  <td class="strong-fit">Individual workers (seconds)</td>
+  <td>K8s pods, then nodes as needed (seconds to minutes)</td>
+</tr>
+<tr>
+  <td>Cost during idle</td>
+  <td class="not-avail">Full EC2 + EMR charges continue</td>
+  <td class="strong-fit">$0 with auto-stop enabled; warm pool incurs cost if active</td>
+  <td class="caution">EKS control plane at $0.10/hr plus any idle nodes</td>
+</tr>
+<tr>
+  <td>Spot Instance support</td>
+  <td class="strong-fit">Yes — up to 90% savings, recommended for <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-instances-guidelines.html#emr-dev-task-instance-group-spot" target="_blank">task nodes</a></td>
+  <td class="not-avail">Not available — fixed per-second rates</td>
+  <td><span class="sup">Yes</span> — via Karpenter or Spot node groups</td>
+</tr>
+<tr>
+  <td>Instance diversification</td>
+  <td class="strong-fit"><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-instance-fleet.html" target="_blank">Instance fleets</a> with up to 30 types, multi-AZ support</td>
+  <td>Not applicable — AWS manages compute internally</td>
+  <td>Via Karpenter NodePools with diverse instance types</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 5. PRICING ============ -->
+<div class="section-title"><span class="section-number">5.</span> Pricing</div>
+<div class="prose">
+  <p>Each deployment option uses a fundamentally different pricing model, and the cheapest option depends entirely on your usage pattern. EMR on EC2 charges a per-instance-hour EMR surcharge on top of standard EC2 pricing — you can reduce the EC2 portion with Spot, Reserved Instances, or Savings Plans, but the surcharge is fixed. EMR Serverless rolls everything into per-second vCPU, memory, and storage rates — simple to predict, but no Spot discounts. EMR on EKS layers three costs: the EKS control plane, the underlying EC2 or Fargate compute, and an EMR surcharge per pod resource consumed.</p>
+  <p>The practical impact: for sustained 24/7 workloads, EC2 with Spot or Reserved Instances is cheapest. For intermittent workloads that run a few hours a day, Serverless wins because idle hours cost nothing. EKS is most cost-effective when the cluster is shared across analytics and non-analytics workloads.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Component</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>Pricing model</td>
+  <td>EC2 price (On-Demand, Spot, or RI) + <a href="https://aws.amazon.com/emr/pricing/" target="_blank">EMR surcharge</a> per instance</td>
+  <td>Per-second: vCPU + Memory + Storage, all-inclusive</td>
+  <td>EKS control plane ($0.10/hr) + EC2 or Fargate + EMR surcharge per pod resources</td>
+</tr>
+<tr>
+  <td>EMR surcharge example</td>
+  <td><span class="price">$0.048/hr</span><span class="price-sub">m5.xlarge (4 vCPU, 16 GB)</span></td>
+  <td><span class="price">$0.052624/vCPU-hr</span><span class="price-sub">+ $0.0057785/GB-hr (x86 rates)</span></td>
+  <td><span class="price">$0.01012/vCPU-hr</span><span class="price-sub">+ $0.00111125/GB-hr (EMR pod surcharge)</span></td>
+</tr>
+<tr>
+  <td>Graviton discount</td>
+  <td>~20% lower EMR surcharge + ~20% lower EC2 price</td>
+  <td class="strong-fit">~20% lower across the board ($0.042094/vCPU-hr)</td>
+  <td>~20% lower EC2 cost; EMR surcharge unchanged</td>
+</tr>
+<tr>
+  <td>Example: 10 workers, 4 vCPU, 16 GB each — 1 hour</td>
+  <td>
+    <span class="price">$2.40</span> On-Demand<br>
+    <span class="price price-good">~$1.25</span> with Spot
+  </td>
+  <td>
+    <span class="price">$3.03</span> x86<br>
+    <span class="price price-good">$2.42</span> Graviton
+  </td>
+  <td>
+    <span class="price">~$2.60</span> EC2 On-Demand<br>
+    <span class="price price-good">~$1.45</span> EC2 Spot
+  </td>
+</tr>
+<tr>
+  <td>Same workload at 2 hrs/day for 30 days</td>
+  <td>
+    <span class="price price-bad">$1,728</span> if cluster runs 24/7<br>
+    <span class="price price-good">$144</span> as transient cluster
+  </td>
+  <td class="strong-fit">
+    <span class="price price-good">$182</span> x86<br>
+    <span class="price price-good">$145</span> Graviton
+  </td>
+  <td>
+    <span class="price">$156</span> EC2 On-Demand + shared<br>
+    <span class="price price-good">$87</span> EC2 Spot + shared
+  </td>
+</tr>
+</table>
+</div>
+<div class="callout">
+  <strong>A note on the monthly cost comparison</strong>
+  The $1,728 figure for EMR on EC2 assumes a long-running cluster left idle for 22 hours a day — a common and costly mistake. With transient clusters that auto-terminate after the job completes, EC2 costs drop to $144/month for the same workload. The right comparison is transient EC2 vs. Serverless vs. EKS, where the differences are much smaller and the decision hinges on operational preferences rather than raw cost.
+</div>
+
+<!-- ============ 6. SECURITY ============ -->
+<div class="section-title"><span class="section-number">6.</span> Security and Access Control</div>
+<div class="prose">
+  <p>All three options support the foundational security requirements: VPC isolation, encryption at rest and in transit, and IAM-based access control. The differences emerge in more advanced areas. EMR on EC2 offers the deepest security feature set — Kerberos authentication with Active Directory integration, Apache Ranger for policy-based authorization, and the most mature Lake Formation integration. EMR Serverless provides a simpler security model centered on runtime roles per job. EMR on EKS leverages Kubernetes-native constructs like namespaces, RBAC, and network policies for multi-tenant isolation.</p>
+  <p>Lake Formation integration is worth particular attention if you need fine-grained access control. Both EC2 and Serverless support the Fine-Grained Access Control mode (row, column, and cell-level filtering). Full Table Access mode — which is simpler and less restrictive — is available on EC2 and Serverless but not yet on EKS.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Capability</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>IAM integration</td>
+  <td>Service role + instance profile + <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-steps-runtime-roles.html" target="_blank">runtime roles</a> (EMR 6.x+)</td>
+  <td>Runtime role per job run</td>
+  <td>Job execution role via <a href="https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/setting-up-enable-IAM.html" target="_blank">Pod Identity</a> or IRSA</td>
+</tr>
+<tr>
+  <td>Network isolation (VPC)</td>
+  <td>Private subnets, security groups, VPC endpoints</td>
+  <td>VPC configuration per application</td>
+  <td>EKS VPC with network policies</td>
+</tr>
+<tr>
+  <td>Encryption at rest</td>
+  <td>SSE-S3, SSE-KMS, CSE-KMS, <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-data-encryption-options.html" target="_blank">LUKS for local disks</a></td>
+  <td>S3 encryption + managed worker encryption</td>
+  <td>S3 encryption + EBS encryption on nodes</td>
+</tr>
+<tr>
+  <td>Encryption in transit</td>
+  <td>TLS</td>
+  <td>TLS</td>
+  <td>TLS</td>
+</tr>
+<tr>
+  <td>Kerberos authentication</td>
+  <td class="strong-fit"><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-kerberos.html" target="_blank">Supported — including Active Directory cross-realm trust</a></td>
+  <td><span class="nosup">Not available</span></td>
+  <td><span class="nosup">Not available</span></td>
+</tr>
+<tr>
+  <td>Lake Formation — Fine-Grained (row/column/cell)</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/lake-formation-fine-grained-access.html" target="_blank">Supported</a> (EMR 6.15+)</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/lake-formation-section.html" target="_blank">Supported</a> (EMR 7.2+, Spark reads)</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/security_iam_fgac-lf-works.html" target="_blank">Supported via dual-driver architecture</a></td>
+</tr>
+<tr>
+  <td>Lake Formation — Full Table Access</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/lake-formation-unfiltered-ec2-access.html" target="_blank">Supported</a> (EMR 7.8+)</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/lake-formation-unfiltered-access.html" target="_blank">Supported</a> (EMR 7.9+)</td>
+  <td><span class="nosup">Not available</span> — FGAC only</td>
+</tr>
+<tr>
+  <td>Apache Ranger</td>
+  <td class="strong-fit"><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-ranger.html" target="_blank">Supported</a></td>
+  <td><span class="nosup">Not available</span></td>
+  <td><span class="nosup">Not available</span></td>
+</tr>
+<tr>
+  <td>Multi-tenant isolation</td>
+  <td>Separate clusters per tenant</td>
+  <td>Separate applications with distinct runtime roles</td>
+  <td class="strong-fit">Kubernetes namespaces + RBAC + network policies</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 7. OPERATIONS ============ -->
+<div class="section-title"><span class="section-number">7.</span> Operations and Customization</div>
+<div class="prose">
+  <p>The operational burden varies dramatically. EMR Serverless is the lightest — you submit jobs and AWS handles provisioning, patching, and scaling. There is no infrastructure to maintain. EMR on EC2 gives you the most control but requires the most work: you manage cluster lifecycle, OS patching, YARN tuning, bootstrap actions, and scaling policies. EMR on EKS falls in the middle operationally — EMR manages the job pods, but you are responsible for the EKS cluster itself, including Kubernetes version upgrades, node group management, and monitoring.</p>
+  <p>Customization follows the same pattern. EC2 lets you SSH into nodes, run bootstrap scripts, use custom AMIs, and attach GPU instances. EKS allows custom container images and Kubernetes-native tooling. Serverless limits you to custom Docker images and Spark/Hive configuration overrides.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Capability</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>SSH access to compute</td>
+  <td class="strong-fit">Yes — full SSH access to all nodes</td>
+  <td><span class="nosup">Not available</span></td>
+  <td><span class="partial">Partial</span> — kubectl exec into pods</td>
+</tr>
+<tr>
+  <td>Bootstrap actions / custom images</td>
+  <td class="strong-fit">Full OS-level customization via <a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html" target="_blank">bootstrap actions</a> and custom AMIs</td>
+  <td><span class="partial">Custom Docker images only</span></td>
+  <td>Custom container images</td>
+</tr>
+<tr>
+  <td>GPU instance support</td>
+  <td class="strong-fit">Yes — g5, p3, p4, and other GPU families</td>
+  <td><span class="nosup">Not available</span></td>
+  <td>Yes — via EC2 GPU node groups</td>
+</tr>
+<tr>
+  <td>Step / job concurrency</td>
+  <td>Up to 256 concurrent steps (<a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-concurrent-steps.html" target="_blank">EMR 5.28+</a>)</td>
+  <td>Multiple concurrent job runs per application</td>
+  <td>Limited by available cluster resources</td>
+</tr>
+<tr>
+  <td>Interactive notebooks</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-managed-notebooks.html" target="_blank">EMR Studio</a>, Zeppelin, JupyterHub</td>
+  <td>EMR Studio</td>
+  <td>Managed endpoints for EMR Studio</td>
+</tr>
+<tr>
+  <td>Job submission methods</td>
+  <td>EMR Steps, spark-submit, SSH, notebooks</td>
+  <td><a href="https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/jobs.html" target="_blank">StartJobRun API</a>, EMR Studio</td>
+  <td class="strong-fit"><a href="https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/job-runs-main.html" target="_blank">StartJobRun</a>, Spark Operator, spark-submit, <a href="https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/job-runs-apache-livy.html" target="_blank">Livy</a>, K8s manifests</td>
+</tr>
+<tr>
+  <td>GitOps and IaC support</td>
+  <td>CloudFormation, Terraform</td>
+  <td>CloudFormation, Terraform</td>
+  <td class="strong-fit">Kubernetes manifests with ArgoCD, Flux, Helm</td>
+</tr>
+<tr>
+  <td>Operational complexity</td>
+  <td class="caution">High — cluster management, patching, YARN tuning</td>
+  <td class="strong-fit">Minimal — submit jobs, nothing else to manage</td>
+  <td class="caution">High — EKS management requires Kubernetes expertise</td>
+</tr>
+<tr>
+  <td>OS and security patching</td>
+  <td class="caution">Your responsibility — rotate clusters or use latest AMIs</td>
+  <td class="strong-fit">Fully managed by AWS</td>
+  <td class="caution">Your responsibility — EKS and node group upgrades</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 8. LIMITATIONS ============ -->
+<div class="section-title"><span class="section-number">8.</span> Key Limitations</div>
+<div class="prose">
+  <p>Every option has trade-offs, and understanding the hard constraints upfront saves time. The table below summarizes the most impactful limitations for each deployment model — the kind of constraints that can disqualify an option early in the evaluation or surface as pain points months into production.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Constraint</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>Cold start latency</td>
+  <td class="not-avail">5–15 minutes</td>
+  <td>30–60 seconds without warm pool; near-zero with one</td>
+  <td class="caution">1–3 minutes when new nodes need provisioning</td>
+</tr>
+<tr>
+  <td>Idle cost</td>
+  <td class="not-avail">Full compute charges continue while cluster is running</td>
+  <td class="strong-fit">$0 with auto-stop enabled</td>
+  <td class="caution">EKS control plane ($0.10/hr) plus any idle EC2 nodes</td>
+</tr>
+<tr>
+  <td>Max worker or pod size</td>
+  <td class="strong-fit">No limit — any EC2 instance type available</td>
+  <td class="not-avail">16 vCPU / 120 GB per worker</td>
+  <td class="caution">Fargate: 4 vCPU / 30 GB per pod; EC2: no limit</td>
+</tr>
+<tr>
+  <td>Spot pricing availability</td>
+  <td class="strong-fit">Up to 90% savings on task nodes</td>
+  <td class="not-avail">Not available</td>
+  <td class="strong-fit">Up to 90% savings via Karpenter or Spot node groups</td>
+</tr>
+<tr>
+  <td>Framework breadth</td>
+  <td class="strong-fit">12+ frameworks</td>
+  <td class="not-avail">Spark and Hive only</td>
+  <td class="caution">Spark and Flink only</td>
+</tr>
+<tr>
+  <td>HDFS availability</td>
+  <td class="strong-fit">Available on core nodes</td>
+  <td class="not-avail">Not available</td>
+  <td class="not-avail">Not available</td>
+</tr>
+<tr>
+  <td>Expertise required</td>
+  <td class="caution">EMR, YARN, and EC2 knowledge</td>
+  <td class="strong-fit">Spark or Hive knowledge only</td>
+  <td class="not-avail">Kubernetes and EMR knowledge</td>
+</tr>
+<tr>
+  <td>Infrastructure lock-in</td>
+  <td class="caution">Fleet vs. instance group choice is permanent per cluster</td>
+  <td class="strong-fit">No infrastructure choices to lock in</td>
+  <td class="strong-fit">No EMR-specific lock-in beyond EKS</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 9. USE CASES ============ -->
+<div class="section-title"><span class="section-number">9.</span> Best-Fit Use Cases</div>
+<div class="prose">
+  <p>Rather than thinking about which option is "best" in the abstract, it helps to start from the workload pattern and work backward. A 24/7 ETL pipeline has completely different requirements than a nightly batch job or a real-time streaming application. The table below maps ten common workload patterns to the deployment option that fits most naturally — though in several cases, more than one option works well.</p>
+</div>
+<div class="table-wrap">
+<table>
+<tr>
+  <th>Workload Pattern</th>
+  <th class="col-head">EMR on EC2</th>
+  <th class="col-head">EMR Serverless</th>
+  <th class="col-head">EMR on EKS</th>
+</tr>
+<tr>
+  <td>24/7 ETL pipelines</td>
+  <td class="strong-fit"><strong>Best fit</strong> — RI or Spot mix delivers lowest sustained cost</td>
+  <td>Viable but higher per-hour cost</td>
+  <td>Good option if EKS cluster already exists</td>
+</tr>
+<tr>
+  <td>Nightly batch jobs (2–4 hours/day)</td>
+  <td>Wasteful unless using transient clusters</td>
+  <td class="strong-fit"><strong>Best fit</strong> — zero cost during idle hours</td>
+  <td>Good with Karpenter scale-to-zero</td>
+</tr>
+<tr>
+  <td>Interactive analytics and notebooks</td>
+  <td>Workable with long-running clusters</td>
+  <td class="strong-fit"><strong>Best fit</strong> — warm pool provides instant startup</td>
+  <td>Workable with managed endpoints</td>
+</tr>
+<tr>
+  <td>Event-driven processing</td>
+  <td>Expensive if cluster runs continuously</td>
+  <td class="strong-fit"><strong>Best fit</strong> — auto-start on each event, pay only for processing</td>
+  <td>Good with Karpenter and scale-to-zero</td>
+</tr>
+<tr>
+  <td>Real-time streaming with Flink</td>
+  <td>Supported</td>
+  <td class="not-avail">Flink not supported</td>
+  <td class="strong-fit"><strong>Best fit</strong> — Flink Operator runs natively on Kubernetes</td>
+</tr>
+<tr>
+  <td>HBase / NoSQL serving layer</td>
+  <td class="strong-fit"><strong>Only option</strong> — HBase requires HDFS on core nodes</td>
+  <td class="not-avail">Not supported</td>
+  <td class="not-avail">Not supported</td>
+</tr>
+<tr>
+  <td>GPU-accelerated ML training</td>
+  <td class="strong-fit"><strong>Best fit</strong> — full GPU instance family support (g5, p3, p4)</td>
+  <td class="not-avail">No GPU support</td>
+  <td>Viable with GPU node groups on EKS</td>
+</tr>
+<tr>
+  <td>Multi-team analytics platform</td>
+  <td>Requires separate clusters per team</td>
+  <td>Separate applications per team</td>
+  <td class="strong-fit"><strong>Best fit</strong> — shared cluster with K8s namespace isolation</td>
+</tr>
+<tr>
+  <td>Organizations already on Kubernetes</td>
+  <td>Adds separate infrastructure to manage</td>
+  <td>No Kubernetes integration</td>
+  <td class="strong-fit"><strong>Best fit</strong> — runs on existing EKS with native tooling</td>
+</tr>
+<tr>
+  <td>Ad-hoc SQL queries (Presto / Trino)</td>
+  <td class="strong-fit"><strong>Only option</strong> — Presto/Trino exclusive to EC2</td>
+  <td class="not-avail">Not supported</td>
+  <td class="not-avail">Not supported</td>
+</tr>
+</table>
+</div>
+
+<!-- ============ 10. DECISION SUMMARY ============ -->
+<div class="section-title"><span class="section-number">10.</span> Decision Summary</div>
+<div class="prose">
+  <p>If you take one thing away from this guide, it should be this: there is no universally correct answer. Each option exists because it serves a distinct operational model. The right choice depends on what frameworks you need, how your workloads behave over time, what infrastructure your team already manages, and how much operational responsibility you are willing to carry.</p>
+</div>
+<div class="decisions">
+  <div class="decision-card">
+    <h3>EMR on EC2</h3>
+    <ul>
+      <li>You need HDFS, HBase, Presto, or GPU instances</li>
+      <li>You run sustained 24/7 workloads and want RI or Spot pricing</li>
+      <li>You need the broadest framework support (12+)</li>
+      <li>You want SSH access and full OS-level customization</li>
+      <li>You require Kerberos or Apache Ranger</li>
+      <li>You need 3-primary-node high availability</li>
+    </ul>
+  </div>
+  <div class="decision-card">
+    <h3>EMR Serverless</h3>
+    <ul>
+      <li>You want zero infrastructure to manage</li>
+      <li>Workloads are intermittent, bursty, or event-driven</li>
+      <li>You only need Spark or Hive</li>
+      <li>Your team does not have infrastructure expertise</li>
+      <li>You want zero cost during idle periods</li>
+      <li>You need sub-second job startup via warm pools</li>
+    </ul>
+  </div>
+  <div class="decision-card">
+    <h3>EMR on EKS</h3>
+    <ul>
+      <li>You already run an EKS cluster for other workloads</li>
+      <li>You need Apache Flink for stream processing</li>
+      <li>You want Kubernetes-native tooling (ArgoCD, Karpenter, Helm)</li>
+      <li>You need multi-tenant isolation on shared infrastructure</li>
+      <li>You want to share compute between analytics and applications</li>
+      <li>You follow a GitOps workflow</li>
+    </ul>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>Pricing data from the AWS Price List API (us-east-1, March 2026). Features based on AWS official documentation. Both are subject to change — always verify at <a href="https://aws.amazon.com/emr/pricing/">aws.amazon.com/emr/pricing</a> and the relevant AWS docs before making architectural decisions.</p>
+</div>
+
+</div>
+</body>
+</html>
